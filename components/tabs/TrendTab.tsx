@@ -133,7 +133,7 @@ export default function TrendTab({ results, yMinCumul, yMaxCumul, startDate }: T
                 >
                   {team}
                 </p>
-                <HistogramChart data={avgDailyReturns} startDate={startDate} height={180} />
+                <HistogramChart data={avgDailyReturns} startDate={startDate} height={180} yMin={-10} yMax={10} />
               </div>
             );
           })}
@@ -148,6 +148,7 @@ export default function TrendTab({ results, yMinCumul, yMaxCumul, startDate }: T
           height={500}
           yMin={yMinCumul}
           yMax={yMaxCumul}
+          compactLegend={true}
         />
       </div>
 
