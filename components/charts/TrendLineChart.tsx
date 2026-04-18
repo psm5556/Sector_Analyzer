@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
-import { createChart, ColorType, IChartApi, LineStyle } from 'lightweight-charts';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { createChart, ColorType, IChartApi, ISeriesApi, LineStyle } from 'lightweight-charts';
 import { DailyReturn } from '@/lib/types';
 
 export interface LineSeriesConfig {
@@ -20,19 +20,29 @@ interface TrendLineChartProps {
   yMax?: number;
 }
 
-const COLORS = [
-  '#1a56db', '#0e9f6e', '#e02424', '#d97706', '#7e3af2',
-  '#e74694', '#0694a2', '#ff5a1f', '#31c48d', '#6875f5',
-  '#84cc16', '#f43f5e', '#06b6d4', '#a855f7', '#fb923c',
-  '#22d3ee', '#ec4899', '#10b981', '#f97316', '#8b5cf6',
-];
-
 export default function TrendLineChart({ series, height = 350, title, yMin, yMax }: TrendLineChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const seriesRefs = useRef<Record<string, ISeriesApi<'Line'>>>({});
+
+  // Visibility state — keyed by series title
+  const [visibility, setVisibility] = useState<Record<string, boolean>>({});
+
+  // Reset visibility when the set of series changes
+  const seriesTitleKey = series.map((s) => s.title).join('|');
+  useEffect(() => {
+    setVisibility(Object.fromEntries(series.map((s) => [s.title, true])));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seriesTitleKey]);
 
   const initChart = useCallback(() => {
     if (!containerRef.current || !series.length) return;
+
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
+    }
+    seriesRefs.current = {};
 
     const chart = createChart(containerRef.current, {
       layout: {
@@ -55,13 +65,12 @@ export default function TrendLineChart({ series, height = 350, title, yMin, yMax
       },
       crosshair: { mode: 1 },
     });
-
     chartRef.current = chart;
 
-    series.forEach((s, i) => {
+    series.forEach((s) => {
       if (!s.data.length) return;
       const lineSeries = chart.addLineSeries({
-        color: s.color || COLORS[i % COLORS.length],
+        color: s.color,
         lineWidth: (s.lineWidth ?? 2) as 1 | 2 | 3 | 4,
         lineStyle: s.lineStyle ?? LineStyle.Solid,
         title: s.title,
@@ -74,27 +83,28 @@ export default function TrendLineChart({ series, height = 350, title, yMin, yMax
           value: d.value,
         }))
       );
+      seriesRefs.current[s.title] = lineSeries;
     });
 
-    // Zero line
-    const baselineSeries = chart.addLineSeries({
-      color: '#9ca3af',
-      lineWidth: 1 as const,
-      lineStyle: LineStyle.Dashed,
-      priceLineVisible: false,
-      lastValueVisible: false,
-      title: '',
-    });
+    // Zero baseline
     const allDates = series.flatMap((s) => s.data.map((d) => d.date)).sort();
     if (allDates.length >= 2) {
-      baselineSeries.setData([
-        { time: allDates[0] as Parameters<typeof baselineSeries.setData>[0][0]['time'], value: 0 },
-        { time: allDates[allDates.length - 1] as Parameters<typeof baselineSeries.setData>[0][0]['time'], value: 0 },
+      const baseline = chart.addLineSeries({
+        color: '#d1d5db',
+        lineWidth: 1 as const,
+        lineStyle: LineStyle.Dashed,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        title: '',
+      });
+      baseline.setData([
+        { time: allDates[0] as Parameters<typeof baseline.setData>[0][0]['time'], value: 0 },
+        { time: allDates[allDates.length - 1] as Parameters<typeof baseline.setData>[0][0]['time'], value: 0 },
       ]);
     }
 
     chart.timeScale().fitContent();
-  }, [series, height, yMin, yMax]);
+  }, [series, height, yMin, yMax]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     initChart();
@@ -110,6 +120,17 @@ export default function TrendLineChart({ series, height = 350, title, yMin, yMax
       chartRef.current = null;
     };
   }, [initChart]);
+
+  // Apply visibility without recreating the chart
+  useEffect(() => {
+    Object.entries(visibility).forEach(([seriesTitle, visible]) => {
+      seriesRefs.current[seriesTitle]?.applyOptions({ visible });
+    });
+  }, [visibility]);
+
+  const toggleSeries = (seriesTitle: string) => {
+    setVisibility((prev) => ({ ...prev, [seriesTitle]: !prev[seriesTitle] }));
+  };
 
   const validSeries = series.filter((s) => s.data.length > 0);
 
@@ -128,16 +149,32 @@ export default function TrendLineChart({ series, height = 350, title, yMin, yMax
     <div>
       {title && <h3 className="text-sm font-semibold text-gray-700 mb-2">{title}</h3>}
       <div ref={containerRef} className="w-full rounded-lg overflow-hidden" />
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-        {validSeries.map((s, i) => (
-          <span key={s.title} className="flex items-center gap-1 text-xs text-gray-600">
-            <span
-              className="inline-block w-6 h-0.5 rounded"
-              style={{ backgroundColor: s.color || COLORS[i % COLORS.length] }}
-            />
-            {s.title}
-          </span>
-        ))}
+
+      {/* Interactive legend */}
+      <div className="flex flex-wrap gap-2 mt-2">
+        {validSeries.map((s) => {
+          const active = visibility[s.title] !== false;
+          return (
+            <button
+              key={s.title}
+              onClick={() => toggleSeries(s.title)}
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-xs border transition-colors ${
+                active
+                  ? 'border-gray-300 text-gray-700 bg-white'
+                  : 'border-gray-100 text-gray-300 bg-gray-50 line-through'
+              }`}
+            >
+              <span
+                className="inline-block w-5 h-0.5 rounded shrink-0"
+                style={{
+                  backgroundColor: active ? s.color : '#d1d5db',
+                  borderStyle: s.lineStyle === LineStyle.Dashed || s.lineStyle === LineStyle.Dotted ? 'dashed' : 'solid',
+                }}
+              />
+              {s.title}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

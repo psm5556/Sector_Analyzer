@@ -15,6 +15,13 @@ import MiniBarChart from '@/components/charts/MiniBarChart';
 const TrendLineChart = dynamic(() => import('@/components/charts/TrendLineChart'), { ssr: false });
 const HistogramChart = dynamic(() => import('@/components/charts/HistogramChart'), { ssr: false });
 
+function getTeamColor(team: string): string {
+  if (team.includes('청')) return '#2563eb'; // Blue
+  if (team.includes('백')) return '#16a34a'; // Green
+  if (team.includes('흑')) return '#111827'; // Black
+  return '#9333ea'; // Purple fallback
+}
+
 const SECTOR_COLORS = [
   '#1a56db', '#0e9f6e', '#e02424', '#d97706', '#7e3af2',
   '#e74694', '#0694a2', '#ff5a1f', '#31c48d', '#6875f5',
@@ -40,9 +47,9 @@ export default function TrendTab({ results, yMinCumul, yMaxCumul, startDate }: T
 
   const teamCumul = useMemo(
     () =>
-      teams.map((team, i) => ({
+      teams.map((team) => ({
         data: calcTeamAverageCumul(results, team),
-        color: i === 0 ? '#1a56db' : '#e02424',
+        color: getTeamColor(team),
         title: team,
       })),
     [results, teams]
@@ -120,7 +127,12 @@ export default function TrendTab({ results, yMinCumul, yMaxCumul, startDate }: T
             });
             return (
               <div key={team}>
-                <p className="text-xs font-medium text-gray-600 mb-2">{team}</p>
+                <p
+                  className="text-xs font-semibold mb-2"
+                  style={{ color: getTeamColor(team) }}
+                >
+                  {team}
+                </p>
                 <HistogramChart data={avgDailyReturns} startDate={startDate} height={180} />
               </div>
             );
