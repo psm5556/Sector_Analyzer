@@ -6,8 +6,9 @@ import TabNav, { TabId } from '@/components/ui/TabNav';
 import PortfolioTab from '@/components/tabs/PortfolioTab';
 import TrendTab from '@/components/tabs/TrendTab';
 import HeatmapTab from '@/components/tabs/HeatmapTab';
-import { PortfolioItem, StockAnalysis, AnalysisStatus } from '@/lib/types';
-import { buildAnalysis } from '@/lib/calculations';
+import EtfTab from '@/components/tabs/EtfTab';
+import { PortfolioItem, StockAnalysis, AnalysisStatus, EtfItem, EtfAnalysis } from '@/lib/types';
+import { buildAnalysis, calcCumulReturns } from '@/lib/calculations';
 
 const CONCURRENCY = 8;
 
@@ -41,6 +42,28 @@ async function analyzeOne(item: PortfolioItem, startDate: string, endDate: strin
   return buildAnalysis(item, priceData.ohlc ?? [], finviz);
 }
 
+async function analyzeEtf(item: EtfItem, startDate: string, endDate: string): Promise<EtfAnalysis> {
+  const priceData = await fetchStockData(item.ticker, startDate, endDate);
+  const ohlc = priceData.ohlc ?? [];
+  const basePrice = ohlc.length > 0 ? ohlc[0].close : null;
+  const currentPrice = ohlc.length > 0 ? ohlc[ohlc.length - 1].close : null;
+  const cumulReturnBase =
+    basePrice && currentPrice && basePrice !== 0
+      ? ((currentPrice - basePrice) / basePrice) * 100
+      : null;
+  const cumulReturns = basePrice ? calcCumulReturns(ohlc, basePrice) : [];
+  return {
+    ticker: item.ticker,
+    company: item.company,
+    category: item.category,
+    sector: item.sector,
+    basePrice,
+    currentPrice,
+    cumulReturnBase,
+    cumulReturns,
+  };
+}
+
 async function runWithConcurrency<T>(
   tasks: (() => Promise<T>)[],
   concurrency: number,
@@ -68,6 +91,8 @@ export default function Dashboard() {
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
   const [results, setResults] = useState<StockAnalysis[]>([]);
+  const [etfPortfolio, setEtfPortfolio] = useState<EtfItem[]>([]);
+  const [etfResults, setEtfResults] = useState<EtfAnalysis[]>([]);
   const [status, setStatus] = useState<AnalysisStatus>('idle');
   const [progress, setProgress] = useState(0);
 
@@ -79,7 +104,7 @@ export default function Dashboard() {
   const [yMinCumul, setYMinCumul] = useState(-50);
   const [yMaxCumul, setYMaxCumul] = useState(50);
 
-  // Load portfolio on mount
+  // Load portfolio and ETF list on mount
   useEffect(() => {
     fetch('/api/portfolio')
       .then((r) => r.json())
@@ -88,6 +113,13 @@ export default function Dashboard() {
         else setPortfolio(d.items ?? []);
       })
       .catch((e) => setPortfolioError(String(e)));
+
+    fetch('/api/etf-portfolio')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.error) setEtfPortfolio(d.items ?? []);
+      })
+      .catch(() => {});
   }, []);
 
   const handleAnalyze = useCallback(async () => {
@@ -95,22 +127,44 @@ export default function Dashboard() {
     setStatus('loading');
     setProgress(0);
     setResults([]);
+    setEtfResults([]);
 
-    const tasks = portfolio.map(
-      (item) => () => analyzeOne(item, startDate, endDate)
-    );
+    const total = portfolio.length + etfPortfolio.length;
+    let done = 0;
+    const onProgress = () => {
+      done++;
+      setProgress(Math.round((done / total) * 100));
+    };
 
     try {
-      const analysisResults = await runWithConcurrency(tasks, CONCURRENCY, (done, total) => {
-        setProgress(Math.round((done / total) * 100));
-      });
+      const portfolioTasks = portfolio.map(
+        (item) => async () => {
+          const r = await analyzeOne(item, startDate, endDate);
+          onProgress();
+          return r;
+        }
+      );
+      const etfTasks = etfPortfolio.map(
+        (item) => async () => {
+          const r = await analyzeEtf(item, startDate, endDate);
+          onProgress();
+          return r;
+        }
+      );
+
+      const [analysisResults, etfAnalysisResults] = await Promise.all([
+        runWithConcurrency(portfolioTasks, CONCURRENCY, () => {}),
+        runWithConcurrency(etfTasks, CONCURRENCY, () => {}),
+      ]);
+
       setResults(analysisResults);
+      setEtfResults(etfAnalysisResults);
       setStatus('done');
     } catch (err) {
       console.error(err);
       setStatus('error');
     }
-  }, [portfolio, startDate, endDate, status]);
+  }, [portfolio, etfPortfolio, startDate, endDate, status]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -120,7 +174,7 @@ export default function Dashboard() {
           <h1 className="text-lg font-bold text-gray-900">📈 투자 포트폴리오 대시보드</h1>
           {status === 'done' && (
             <span className="text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-0.5">
-              ✓ {results.length}개 종목 분석 완료
+              ✓ {results.length}개 종목 · ETF {etfResults.length}개 분석 완료
             </span>
           )}
           {portfolioError && (
@@ -176,6 +230,13 @@ export default function Dashboard() {
                 />
               )}
               {activeTab === 'heatmap' && <HeatmapTab results={results} />}
+              {activeTab === 'etf' && (
+                <EtfTab
+                  results={etfResults}
+                  yMinCumul={yMinCumul}
+                  yMaxCumul={yMaxCumul}
+                />
+              )}
             </div>
           </div>
         </main>

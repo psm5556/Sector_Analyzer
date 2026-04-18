@@ -1,6 +1,6 @@
 'use client';
 
-export type TabId = 'portfolio' | 'trend' | 'heatmap';
+export type TabId = 'portfolio' | 'trend' | 'heatmap' | 'etf';
 
 interface Tab {
   id: TabId;
@@ -11,6 +11,7 @@ const TABS: Tab[] = [
   { id: 'portfolio', label: '📈 포트폴리오 분석' },
   { id: 'trend', label: '📊 트렌드 분석' },
   { id: 'heatmap', label: '🔥 히트맵' },
+  { id: 'etf', label: '🌐 ETF 트렌드' },
 ];
 
 interface TabNavProps {

@@ -80,3 +80,21 @@ export interface AnalysisState {
 
 export type HeatmapType = 'cumul' | 'daily';
 export type ChartInterval = '1d' | '1wk';
+
+export interface EtfItem {
+  category: string;
+  sector: string;
+  company: string;
+  ticker: string;
+}
+
+export interface EtfAnalysis {
+  ticker: string;
+  company: string;
+  category: string;
+  sector: string;
+  basePrice: number | null;
+  currentPrice: number | null;
+  cumulReturnBase: number | null;
+  cumulReturns: DailyReturn[];
+}

@@ -18,17 +18,24 @@ interface TrendLineChartProps {
   title?: string;
   yMin?: number;
   yMax?: number;
+  /** When true, renders legend as a compact scrollable grid (for many series like sectors) */
+  compactLegend?: boolean;
 }
 
-export default function TrendLineChart({ series, height = 350, title, yMin, yMax }: TrendLineChartProps) {
+export default function TrendLineChart({
+  series,
+  height = 350,
+  title,
+  yMin,
+  yMax,
+  compactLegend = false,
+}: TrendLineChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRefs = useRef<Record<string, ISeriesApi<'Line'>>>({});
 
-  // Visibility state — keyed by series title
   const [visibility, setVisibility] = useState<Record<string, boolean>>({});
 
-  // Reset visibility when the set of series changes
   const seriesTitleKey = series.map((s) => s.title).join('|');
   useEffect(() => {
     setVisibility(Object.fromEntries(series.map((s) => [s.title, true])));
@@ -132,6 +139,9 @@ export default function TrendLineChart({ series, height = 350, title, yMin, yMax
     setVisibility((prev) => ({ ...prev, [seriesTitle]: !prev[seriesTitle] }));
   };
 
+  const showAll = () => setVisibility(Object.fromEntries(series.map((s) => [s.title, true])));
+  const hideAll = () => setVisibility(Object.fromEntries(series.map((s) => [s.title, false])));
+
   const validSeries = series.filter((s) => s.data.length > 0);
 
   if (!validSeries.length) {
@@ -145,36 +155,72 @@ export default function TrendLineChart({ series, height = 350, title, yMin, yMax
     );
   }
 
+  const hiddenCount = validSeries.filter((s) => visibility[s.title] === false).length;
+
   return (
     <div>
       {title && <h3 className="text-sm font-semibold text-gray-700 mb-2">{title}</h3>}
       <div ref={containerRef} className="w-full rounded-lg overflow-hidden" />
 
       {/* Interactive legend */}
-      <div className="flex flex-wrap gap-2 mt-2">
-        {validSeries.map((s) => {
-          const active = visibility[s.title] !== false;
-          return (
-            <button
-              key={s.title}
-              onClick={() => toggleSeries(s.title)}
-              className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-xs border transition-colors ${
-                active
-                  ? 'border-gray-300 text-gray-700 bg-white'
-                  : 'border-gray-100 text-gray-300 bg-gray-50 line-through'
-              }`}
-            >
-              <span
-                className="inline-block w-5 h-0.5 rounded shrink-0"
-                style={{
-                  backgroundColor: active ? s.color : '#d1d5db',
-                  borderStyle: s.lineStyle === LineStyle.Dashed || s.lineStyle === LineStyle.Dotted ? 'dashed' : 'solid',
-                }}
-              />
-              {s.title}
-            </button>
-          );
-        })}
+      <div className="mt-2">
+        <div className="flex items-center gap-2 mb-2">
+          {compactLegend && (
+            <span className="text-xs text-gray-400">{validSeries.length}개 섹터</span>
+          )}
+          {hiddenCount > 0 && (
+            <span className="text-xs text-gray-400">({hiddenCount}개 숨김)</span>
+          )}
+          <button
+            onClick={showAll}
+            className="text-xs text-blue-500 hover:underline ml-auto"
+          >
+            전체 표시
+          </button>
+          <button
+            onClick={hideAll}
+            className="text-xs text-gray-400 hover:underline ml-1"
+          >
+            전체 숨김
+          </button>
+        </div>
+
+        <div
+          className={
+            compactLegend
+              ? 'grid gap-x-3 gap-y-1 max-h-48 overflow-y-auto pr-1'
+              : 'flex flex-wrap gap-2'
+          }
+          style={compactLegend ? { gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' } : undefined}
+        >
+          {validSeries.map((s) => {
+            const active = visibility[s.title] !== false;
+            return (
+              <button
+                key={s.title}
+                onClick={() => toggleSeries(s.title)}
+                title={s.title}
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded border transition-colors text-left w-full ${
+                  compactLegend ? 'text-[11px]' : 'text-xs'
+                } ${
+                  active
+                    ? 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                    : 'border-gray-100 text-gray-300 bg-gray-50'
+                }`}
+              >
+                <span
+                  className="inline-block shrink-0 rounded"
+                  style={{
+                    width: compactLegend ? 12 : 20,
+                    height: 2,
+                    backgroundColor: active ? s.color : '#d1d5db',
+                  }}
+                />
+                <span className={`truncate ${!active ? 'line-through' : ''}`}>{s.title}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
