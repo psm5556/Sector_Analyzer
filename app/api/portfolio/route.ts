@@ -27,17 +27,19 @@ export async function GET() {
     }
 
     // Skip header row, parse each row
+    // Original app uses usecols=[1,2,3,4,5] — columns B-F (skip column A)
     const items: PortfolioItem[] = [];
     for (let i = 1; i < lines.length; i++) {
       const cols = parseCSVLine(lines[i]);
-      if (cols.length >= 5) {
-        const ticker = cols[4]?.trim().replace(/^"|"$/g, '');
+      // cols[0]=A(skip), cols[1]=팀, cols[2]=자산, cols[3]=섹터, cols[4]=기업명, cols[5]=티커
+      if (cols.length >= 6) {
+        const ticker = cols[5]?.trim().replace(/^"|"$/g, '');
         if (ticker && ticker !== '') {
           items.push({
-            team: cols[0]?.trim().replace(/^"|"$/g, '') || '',
-            assetType: cols[1]?.trim().replace(/^"|"$/g, '') || '',
-            sector: cols[2]?.trim().replace(/^"|"$/g, '') || '',
-            company: cols[3]?.trim().replace(/^"|"$/g, '') || '',
+            team: cols[1]?.trim().replace(/^"|"$/g, '') || '',
+            assetType: cols[2]?.trim().replace(/^"|"$/g, '') || '',
+            sector: cols[3]?.trim().replace(/^"|"$/g, '') || '',
+            company: cols[4]?.trim().replace(/^"|"$/g, '') || '',
             ticker,
           });
         }

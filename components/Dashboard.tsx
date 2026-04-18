@@ -16,9 +16,8 @@ function todayStr() {
 }
 
 function defaultStartDate() {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - 1);
-  return d.toISOString().split('T')[0];
+  // Matches original app.py: datetime(2025, 10, 9)
+  return '2025-10-09';
 }
 
 async function fetchStockData(ticker: string, start: string, end: string) {

@@ -10,6 +10,7 @@ import {
   groupBySector,
 } from '@/lib/calculations';
 import { LineStyle } from 'lightweight-charts';
+import MiniBarChart from '@/components/charts/MiniBarChart';
 
 const TrendLineChart = dynamic(() => import('@/components/charts/TrendLineChart'), { ssr: false });
 const HistogramChart = dynamic(() => import('@/components/charts/HistogramChart'), { ssr: false });
@@ -38,7 +39,12 @@ export default function TrendTab({ results, yMinCumul, yMaxCumul, startDate }: T
   const sectorGroups = useMemo(() => groupBySector(results), [results]);
 
   const teamCumul = useMemo(
-    () => teams.map((team, i) => ({ data: calcTeamAverageCumul(results, team), color: i === 0 ? '#1a56db' : '#e02424', title: team })),
+    () =>
+      teams.map((team, i) => ({
+        data: calcTeamAverageCumul(results, team),
+        color: i === 0 ? '#1a56db' : '#e02424',
+        title: team,
+      })),
     [results, teams]
   );
   const marketAvg = useMemo(() => calcMarketAverage(results), [results]);
@@ -76,11 +82,19 @@ export default function TrendTab({ results, yMinCumul, yMaxCumul, startDate }: T
     <div className="flex flex-col gap-6">
       {/* Team comparison */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <h2 className="text-sm font-semibold text-gray-800 mb-4">팀별 누적수익률 비교</h2>
+        <h2 className="text-sm font-semibold text-gray-800 mb-1">
+          1️⃣ 청팀 vs 백팀 누적수익률 비교 (가중평균 포함)
+        </h2>
         <TrendLineChart
           series={[
             ...teamCumul,
-            { data: marketAvg, color: '#ef4444', title: '전체 평균', lineWidth: 2 as const, lineStyle: LineStyle.Dashed },
+            {
+              data: marketAvg,
+              color: '#ef4444',
+              title: '시장 전체 가중평균',
+              lineWidth: 2 as const,
+              lineStyle: LineStyle.Dotted,
+            },
           ]}
           height={300}
           yMin={yMinCumul}
@@ -90,9 +104,9 @@ export default function TrendTab({ results, yMinCumul, yMaxCumul, startDate }: T
 
       {/* Team daily change */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <h2 className="text-sm font-semibold text-gray-800 mb-4">팀별 평균 일변동률</h2>
+        <h2 className="text-sm font-semibold text-gray-800 mb-4">청팀 vs 백팀 평균 변동률 비교</h2>
         <div className={`grid grid-cols-1 ${teams.length > 1 ? 'md:grid-cols-2' : ''} gap-4`}>
-          {teams.map((team, i) => {
+          {teams.map((team) => {
             const teamStocks = results.filter((r) => r.team === team);
             const dateSet = new Set<string>();
             teamStocks.forEach((s) => s.dailyReturns.forEach((r) => dateSet.add(r.date)));
@@ -116,19 +130,19 @@ export default function TrendTab({ results, yMinCumul, yMaxCumul, startDate }: T
 
       {/* Sector trends */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <h2 className="text-sm font-semibold text-gray-800 mb-4">섹터별 누적수익률 트렌드</h2>
+        <h2 className="text-sm font-semibold text-gray-800 mb-4">2️⃣ 섹터별 평균 누적변동률 트렌드</h2>
         <TrendLineChart
           series={sectorCumulSeries}
-          height={450}
+          height={500}
           yMin={yMinCumul}
           yMax={yMaxCumul}
         />
       </div>
 
-      {/* Sector deep-dive */}
+      {/* Sector deep-dive — 5-column grid with time-series cumulative return bars */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <h2 className="text-sm font-semibold text-gray-800 mb-4">섹터별 개별 종목 분석</h2>
-        <div className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-gray-800 mb-4">3️⃣ 섹터별 개별 종목 누적변동률</h2>
+        <div className="flex flex-col gap-2">
           {sectors.map((sector) => {
             const stocks = sectorGroups[sector] || [];
             const isOpen = expandedSectors.has(sector);
@@ -136,19 +150,20 @@ export default function TrendTab({ results, yMinCumul, yMaxCumul, startDate }: T
               <div key={sector} className="border border-gray-200 rounded-lg overflow-hidden">
                 <button
                   onClick={() => toggleSector(sector)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                  className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
                 >
                   <span className="text-sm font-medium text-gray-700">
-                    {sector}
+                    📂 {sector}
                     <span className="ml-2 text-xs text-gray-400">{stocks.length}개 종목</span>
                   </span>
-                  <span className="text-gray-400">{isOpen ? '▲' : '▼'}</span>
+                  <span className="text-gray-400 text-xs">{isOpen ? '▲' : '▼'}</span>
                 </button>
                 {isOpen && (
                   <div className="p-4">
+                    {/* 5-column grid matching original Plotly subplots layout */}
                     <div
                       className="grid gap-3"
-                      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
+                      style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}
                     >
                       {stocks.map((stock) => {
                         const val = stock.cumulReturnBase;
@@ -156,23 +171,30 @@ export default function TrendTab({ results, yMinCumul, yMaxCumul, startDate }: T
                         return (
                           <div
                             key={stock.ticker}
-                            className="border border-gray-100 rounded-lg p-3 bg-gray-50"
+                            className="border border-gray-100 rounded-lg p-2 bg-gray-50"
                           >
-                            <div className="text-xs font-medium text-gray-700 truncate">
-                              {stock.company}
+                            {/* Title: 기업명(티커) */}
+                            <div
+                              className="text-[10px] font-medium text-gray-700 truncate leading-tight mb-1"
+                              title={`${stock.company}(${stock.ticker})`}
+                            >
+                              {stock.company}({stock.ticker})
                             </div>
-                            <div className="text-xs text-gray-400 mb-2">{stock.ticker}</div>
-                            {/* Mini bar */}
-                            <div className="relative h-6 bg-gray-200 rounded overflow-hidden">
-                              <div
-                                className={`absolute top-0 h-full rounded transition-all ${isPos ? 'bg-emerald-400 left-1/2' : 'bg-red-400 right-1/2'}`}
-                                style={{
-                                  width: val !== null ? `${Math.min(50, (Math.abs(val) / Math.max(Math.abs(yMinCumul), Math.abs(yMaxCumul))) * 50)}%` : '0%',
-                                }}
+                            {/* Final return badge */}
+                            <div
+                              className={`text-[11px] font-bold mb-1.5 ${isPos ? 'text-emerald-600' : 'text-red-600'}`}
+                            >
+                              {val !== null ? `${val.toFixed(2)}%` : '-'}
+                            </div>
+                            {/* Time-series cumulative return mini bar chart */}
+                            <div className="w-full">
+                              <MiniBarChart
+                                data={stock.cumulReturns}
+                                yMin={yMinCumul}
+                                yMax={yMaxCumul}
+                                width={140}
+                                height={60}
                               />
-                              <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-800">
-                                {val !== null ? `${val.toFixed(1)}%` : '-'}
-                              </div>
                             </div>
                           </div>
                         );
