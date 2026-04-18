@@ -1,0 +1,17 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "functions": {
+    "app/api/finviz/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/stock-price/route.ts": {
+      "maxDuration": 15
+    },
+    "app/api/stock-ma/route.ts": {
+      "maxDuration": 15
+    }
+  }
+}
