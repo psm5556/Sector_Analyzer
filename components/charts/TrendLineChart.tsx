@@ -8,7 +8,7 @@ export interface LineSeriesConfig {
   data: DailyReturn[];
   color: string;
   title: string;
-  lineWidth?: number;
+  lineWidth?: 1 | 2 | 3 | 4;
   lineStyle?: LineStyle;
 }
 
