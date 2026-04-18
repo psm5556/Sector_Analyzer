@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OHLCData, VolumeBar } from '@/lib/types';
+import { toYahooTicker } from '@/lib/ticker';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -14,7 +15,8 @@ export async function GET(request: NextRequest) {
   const period1 = Math.floor(new Date(start).getTime() / 1000);
   const period2 = Math.floor(new Date(end).getTime() / 1000) + 86400;
 
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&period1=${period1}&period2=${period2}`;
+  const yahooTicker = toYahooTicker(ticker);
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooTicker)}?interval=1d&period1=${period1}&period2=${period2}`;
 
   try {
     const res = await fetch(url, {

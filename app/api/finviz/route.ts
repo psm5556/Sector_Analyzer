@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parse } from 'node-html-parser';
+import { isKoreanTicker } from '@/lib/ticker';
 
 const FINVIZ_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -78,6 +79,14 @@ export async function GET(request: NextRequest) {
 
   if (!ticker) {
     return NextResponse.json({ error: 'ticker required' }, { status: 400 });
+  }
+
+  // Finviz only covers US-listed stocks; skip for Korean tickers
+  if (isKoreanTicker(ticker)) {
+    return NextResponse.json({
+      marketCap: '-', debtEquity: '-', currentRatio: '-',
+      roe: '-', totalCash: '-', fcf: '-',
+    });
   }
 
   try {
