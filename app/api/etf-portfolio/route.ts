@@ -27,18 +27,18 @@ export async function GET() {
     }
 
     // Skip header row
-    // Columns: A(skip), B=카테고리, C=섹터, D=기업명, E=티커
+    // Columns: A=카테고리, B=섹터, C=티커, D=주요종목
     const items: EtfItem[] = [];
     for (let i = 1; i < lines.length; i++) {
       const cols = parseCSVLine(lines[i]);
-      if (cols.length >= 5) {
-        const ticker = cols[4]?.trim().replace(/^"|"$/g, '');
+      if (cols.length >= 3) {
+        const ticker = cols[2]?.trim().replace(/^"|"$/g, '');
         if (ticker && ticker !== '') {
           items.push({
-            category: cols[1]?.trim().replace(/^"|"$/g, '') || '',
-            sector: cols[2]?.trim().replace(/^"|"$/g, '') || '',
-            company: cols[3]?.trim().replace(/^"|"$/g, '') || '',
+            category: cols[0]?.trim().replace(/^"|"$/g, '') || '',
+            sector: cols[1]?.trim().replace(/^"|"$/g, '') || '',
             ticker,
+            company: cols[3]?.trim().replace(/^"|"$/g, '') || '',
           });
         }
       }
