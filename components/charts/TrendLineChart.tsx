@@ -62,7 +62,7 @@ export default function TrendLineChart({ series, height = 350, title, yMin, yMax
       if (!s.data.length) return;
       const lineSeries = chart.addLineSeries({
         color: s.color || COLORS[i % COLORS.length],
-        lineWidth: s.lineWidth ?? 2,
+        lineWidth: (s.lineWidth ?? 2) as 1 | 2 | 3 | 4,
         lineStyle: s.lineStyle ?? LineStyle.Solid,
         title: s.title,
         priceLineVisible: false,
@@ -79,7 +79,7 @@ export default function TrendLineChart({ series, height = 350, title, yMin, yMax
     // Zero line
     const baselineSeries = chart.addLineSeries({
       color: '#9ca3af',
-      lineWidth: 1,
+      lineWidth: 1 as const,
       lineStyle: LineStyle.Dashed,
       priceLineVisible: false,
       lastValueVisible: false,

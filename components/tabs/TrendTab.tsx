@@ -80,7 +80,7 @@ export default function TrendTab({ results, yMinCumul, yMaxCumul, startDate }: T
         <TrendLineChart
           series={[
             ...teamCumul,
-            { data: marketAvg, color: '#ef4444', title: '전체 평균', lineWidth: 2, lineStyle: LineStyle.Dashed },
+            { data: marketAvg, color: '#ef4444', title: '전체 평균', lineWidth: 2 as const, lineStyle: LineStyle.Dashed },
           ]}
           height={300}
           yMin={yMinCumul}
