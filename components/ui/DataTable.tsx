@@ -55,7 +55,8 @@ const COLUMNS: { key: SortKey; label: string; width?: string }[] = [
 ];
 
 export default function DataTable({ data, selectedTicker, onSelect }: DataTableProps) {
-  const [sortKey, setSortKey] = useState<SortKey>('cumulReturnBase');
+  // null = no sort → preserve original Google Sheets order
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [filterTeam, setFilterTeam] = useState('');
   const [filterSector, setFilterSector] = useState('');
@@ -79,14 +80,20 @@ export default function DataTable({ data, selectedTicker, onSelect }: DataTableP
       return true;
     });
 
-    filtered = [...filtered].sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      if (av === null || av === '-') return 1;
-      if (bv === null || bv === '-') return -1;
-      const cmp = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv));
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
+    // Only sort when a column is explicitly selected
+    if (sortKey !== null) {
+      filtered = [...filtered].sort((a, b) => {
+        const av = a[sortKey];
+        const bv = b[sortKey];
+        if (av === null || av === '-') return 1;
+        if (bv === null || bv === '-') return -1;
+        const cmp =
+          typeof av === 'number' && typeof bv === 'number'
+            ? av - bv
+            : String(av).localeCompare(String(bv));
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    }
 
     return filtered;
   }, [data, sortKey, sortDir, filterTeam, filterSector, search]);
@@ -98,6 +105,11 @@ export default function DataTable({ data, selectedTicker, onSelect }: DataTableP
       setSortKey(key);
       setSortDir('desc');
     }
+  };
+
+  const resetSort = () => {
+    setSortKey(null);
+    setSortDir('desc');
   };
 
   return (
@@ -127,6 +139,17 @@ export default function DataTable({ data, selectedTicker, onSelect }: DataTableP
           <option value="">전체 섹터</option>
           {sectors.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+
+        {sortKey !== null && (
+          <button
+            onClick={resetSort}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50 transition-colors"
+            title="구글 시트 원래 순서로 복원"
+          >
+            ↺ 원래 순서
+          </button>
+        )}
+
         <span className="text-xs text-gray-500 ml-auto">{sorted.length} / {data.length} 종목</span>
       </div>
 
@@ -135,6 +158,7 @@ export default function DataTable({ data, selectedTicker, onSelect }: DataTableP
         <table className="text-xs w-full border-collapse">
           <thead className="sticky top-0 z-10">
             <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-2 py-2 text-left font-medium text-gray-400 w-8">#</th>
               {COLUMNS.map((col) => (
                 <th
                   key={col.key}
@@ -143,16 +167,20 @@ export default function DataTable({ data, selectedTicker, onSelect }: DataTableP
                   style={{ minWidth: col.width }}
                 >
                   {col.label}
-                  {sortKey === col.key && (
+                  {sortKey === col.key ? (
                     <span className="ml-1 text-blue-500">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                  ) : (
+                    <span className="ml-1 text-gray-300">↕</span>
                   )}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row) => {
+            {sorted.map((row, displayIdx) => {
               const isSelected = row.ticker === selectedTicker;
+              // Show original position in data array (Google Sheets order)
+              const originalIdx = data.indexOf(row) + 1;
               return (
                 <tr
                   key={row.ticker}
@@ -161,6 +189,7 @@ export default function DataTable({ data, selectedTicker, onSelect }: DataTableP
                     isSelected ? 'bg-blue-50 ring-1 ring-inset ring-blue-300' : 'hover:bg-gray-50'
                   }`}
                 >
+                  <td className="px-2 py-1.5 text-gray-300 text-right">{originalIdx}</td>
                   <td className="px-2 py-1.5 whitespace-nowrap">{row.team}</td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-gray-500">{row.assetType}</td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-gray-600">{row.sector}</td>

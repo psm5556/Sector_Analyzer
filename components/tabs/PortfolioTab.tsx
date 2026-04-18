@@ -10,6 +10,9 @@ const CandlestickChart = dynamic(() => import('@/components/charts/CandlestickCh
 
 interface StockMaData {
   ohlc: { time: string; open: number; high: number; low: number; close: number }[];
+  ma20: { time: string; value: number }[];
+  ma60: { time: string; value: number }[];
+  ma125: { time: string; value: number }[];
   ma200: { time: string; value: number }[];
   ma240: { time: string; value: number }[];
   ma365: { time: string; value: number }[];
@@ -150,7 +153,7 @@ export default function PortfolioTab({
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                 {/* Candlestick - takes 2/3 */}
                 <div className="xl:col-span-2">
-                  <p className="text-xs font-medium text-gray-500 mb-2">캔들스틱 차트 (이동평균: MA200/MA240/MA365)</p>
+                  <p className="text-xs font-medium text-gray-500 mb-2">캔들스틱 차트</p>
                   {maLoading ? (
                     <div className="flex items-center justify-center h-[420px] bg-gray-50 rounded-lg">
                       <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full" />
@@ -158,6 +161,9 @@ export default function PortfolioTab({
                   ) : (
                     <CandlestickChart
                       ohlc={maData?.ohlc ?? selectedStock.prices}
+                      ma20={maData?.ma20 ?? []}
+                      ma60={maData?.ma60 ?? []}
+                      ma125={maData?.ma125 ?? []}
                       ma200={maData?.ma200 ?? []}
                       ma240={maData?.ma240 ?? []}
                       ma365={maData?.ma365 ?? []}
