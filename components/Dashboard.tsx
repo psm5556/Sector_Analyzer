@@ -7,6 +7,7 @@ import PortfolioTab from '@/components/tabs/PortfolioTab';
 import TrendTab from '@/components/tabs/TrendTab';
 import HeatmapTab from '@/components/tabs/HeatmapTab';
 import EtfTab from '@/components/tabs/EtfTab';
+import MoneyFlowTab from '@/components/tabs/MoneyFlowTab';
 import { PortfolioItem, StockAnalysis, AnalysisStatus, EtfItem, EtfAnalysis } from '@/lib/types';
 import { buildAnalysis, calcCumulReturns } from '@/lib/calculations';
 
@@ -236,6 +237,9 @@ export default function Dashboard() {
                   yMinCumul={yMinCumul}
                   yMaxCumul={yMaxCumul}
                 />
+              )}
+              {activeTab === 'moneyflow' && (
+                <MoneyFlowTab results={results} />
               )}
             </div>
           </div>
