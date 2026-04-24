@@ -46,9 +46,12 @@ export interface TreemapLeaf {
   name: string;
   ticker: string;
   company: string;
-  value: number;
-  returnPct: number | null;
+  value: number;          // √시총 for layout sizing
+  rawCap: number;         // actual market cap
+  cumulReturnPct: number | null;
+  dailyReturnPct: number | null;
   sector: string;
+  team: string;
 }
 
 export interface TreemapSector {
@@ -56,39 +59,74 @@ export interface TreemapSector {
   children: TreemapLeaf[];
 }
 
-export interface TreemapRoot {
+export interface TreemapTeam {
   name: string;
   children: TreemapSector[];
 }
 
+export interface TreemapRoot {
+  name: string;
+  children: TreemapTeam[];
+}
+
 export function buildTreemapData(results: StockAnalysis[]): TreemapRoot {
-  const sectorMap = new Map<string, TreemapLeaf[]>();
+  // 3-level: team → sector → stock
+  const teamMap = new Map<string, Map<string, TreemapLeaf[]>>();
 
   for (const s of results) {
+    const team = s.team || '기타';
     const sector = s.sector || '기타';
+    if (!teamMap.has(team)) teamMap.set(team, new Map());
+    const sectorMap = teamMap.get(team)!;
     if (!sectorMap.has(sector)) sectorMap.set(sector, []);
-    let value = parseMarketCap(s.marketCap);
+
+    const rawCap = parseMarketCap(s.marketCap);
+    // √시총으로 면적 계산 — 극단값 압축, 소형주 가시성 향상
+    const value = rawCap > 0 ? Math.sqrt(rawCap) : Math.sqrt(1e9);
+
     sectorMap.get(sector)!.push({
       name: s.ticker,
       ticker: s.ticker,
       company: s.company,
       value,
-      returnPct: s.cumulReturnBase,
+      rawCap,
+      cumulReturnPct: s.cumulReturnBase,
+      dailyReturnPct: s.dailyReturnPct,
       sector,
+      team,
     });
   }
 
-  // fallback: equal weight per sector when no market cap data
-  const sectors: TreemapSector[] = Array.from(sectorMap.entries()).map(([name, leaves]) => {
-    const totalCap = leaves.reduce((s, l) => s + l.value, 0);
-    if (totalCap === 0) {
-      const equalVal = 1e9;
-      leaves.forEach(l => (l.value = equalVal));
-    }
-    return { name, children: leaves };
-  });
+  const teams: TreemapTeam[] = Array.from(teamMap.entries()).map(([teamName, sectorMap]) => ({
+    name: teamName,
+    children: Array.from(sectorMap.entries()).map(([sectorName, leaves]) => ({
+      name: sectorName,
+      children: leaves,
+    })),
+  }));
 
-  return { name: 'root', children: sectors };
+  return { name: 'root', children: teams };
+}
+
+// dark-theme color for treemap cells
+export function getTreemapColor(returnPct: number | null): string {
+  if (returnPct === null || isNaN(returnPct)) return '#1e2d3d';
+  if (returnPct >= 5)  return '#00c853';
+  if (returnPct >= 3)  return '#00a846';
+  if (returnPct >= 1)  return '#1b7a3e';
+  if (returnPct >= 0)  return '#0d3320';
+  if (returnPct >= -1) return '#3b0d0d';
+  if (returnPct >= -3) return '#8b1a1a';
+  if (returnPct >= -5) return '#b71c1c';
+  return '#cf2020';
+}
+
+export function getTreemapTextColor(returnPct: number | null): string {
+  if (returnPct === null || isNaN(returnPct)) return '#6b7280';
+  const v = Math.abs(returnPct);
+  if (v >= 3) return '#ffffff';
+  if (v >= 1) return '#e0e0e0';
+  return '#9ca3af';
 }
 
 // ── Stream Chart ──────────────────────────────────────────────────────────────
