@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { TreemapRoot, getTreemapColor, getTreemapTextColor, formatMarketCap } from '@/lib/moneyflow';
+import { TreemapRoot, getTreemapColor, formatMarketCap } from '@/lib/moneyflow';
 
 export type ColorMode = 'cumul' | 'daily';
 
@@ -41,7 +41,6 @@ function buildEChartsData(data: TreemapRoot, colorMode: ColorMode): any[] {
           _retStr: retStr,
           _rawCap: stock.rawCap,
           itemStyle: { color: getTreemapColor(rp ?? null) },
-          label: { color: getTreemapTextColor(rp ?? null) },
         };
       }),
     })),
@@ -154,26 +153,20 @@ export default function TreemapChart({ data, colorMode = 'cumul', onColorModeCha
             label: {
               show: true,
               position: 'inside',
+              color: '#ffffff',
+              fontSize: 11,
+              fontWeight: 'bold',
+              overflow: 'truncate',
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               formatter: (params: any) => {
                 const retStr: string = params.data?._retStr ?? '';
                 const company: string = params.data?._company ?? '';
                 const ticker: string = params.name ?? '';
-                const w: number = params.rect?.width ?? 0;
-                const h: number = params.rect?.height ?? 0;
-                if (w < 18 || h < 12) return '';
-                // Large cell: company name + ticker + return
-                if (w > 80 && h > 50 && company) {
-                  return retStr ? `${company}\n${ticker}\n${retStr}` : `${company}\n${ticker}`;
-                }
-                // Medium cell: ticker + return
-                if (h > 26 && retStr) return `${ticker}\n${retStr}`;
-                // Small cell: ticker only
+                if (!ticker) return '';
+                if (company && retStr) return `${company}\n${ticker}\n${retStr}`;
+                if (retStr) return `${ticker}\n${retStr}`;
                 return ticker;
               },
-              fontSize: 11,
-              fontWeight: 'bold',
-              overflow: 'truncate',
             },
           },
         ],
