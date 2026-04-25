@@ -246,12 +246,12 @@ export function buildRRGData(results: StockAnalysis[], trailLength = 10): RRGSer
 
     const marketVals = dates.map(d => marketByDate.get(d) ?? 0);
 
-    // RS-Ratio: sector excess return vs market average (centered at 0)
-    const rsRatios = sectorVals.map((sv, i) => sv - marketVals[i]);
+    // RS-Ratio: 100 = market average; >100 outperforms, <100 underperforms
+    const rsRatios = sectorVals.map((sv, i) => 100 + (sv - marketVals[i]));
 
-    // RS-Momentum: deviation of RS from its EMA14 (centered at 0)
+    // RS-Momentum: 100 = neutral; >100 RS rising, <100 RS falling
     const rsEma = ema(rsRatios, 14);
-    const rsMomentum = rsRatios.map((r, i) => r - rsEma[i]);
+    const rsMomentum = rsRatios.map((r, i) => 100 + (r - rsEma[i]));
 
     // Skip EMA warm-up period and filter non-finite values
     const warmup = 14;
