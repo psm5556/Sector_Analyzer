@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "date-fns": "^3.6.0",
+    "echarts": "^6.0.0",
+    "echarts-for-react": "^3.0.6",
     "lightweight-charts": "^4.2.0",
     "next": "^14.2.5",
     "node-html-parser": "^6.1.13",
