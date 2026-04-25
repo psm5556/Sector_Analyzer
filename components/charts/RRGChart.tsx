@@ -1,263 +1,290 @@
 'use client';
 
-import { useRef, useState, useEffect, useCallback } from 'react';
-import { RRGSeries, RRGPoint } from '@/lib/moneyflow';
+import { useMemo, useState } from 'react';
+import ReactECharts from 'echarts-for-react';
+import { RRGSeries } from '@/lib/moneyflow';
 
 interface Props {
   series: RRGSeries[];
 }
 
-const QUADRANT_BG = {
-  leading: 'rgba(82,183,136,0.12)',
-  weakening: 'rgba(233,196,106,0.15)',
-  lagging: 'rgba(220,47,2,0.10)',
-  improving: 'rgba(26,130,196,0.12)',
-};
-
-const QUADRANT_LABELS = [
-  { key: 'leading', x: 'right', y: 'top', label: 'Leading 선도', color: '#2d6a4f' },
-  { key: 'weakening', x: 'right', y: 'bottom', label: 'Weakening 약화', color: '#b5830a' },
-  { key: 'lagging', x: 'left', y: 'bottom', label: 'Lagging 후행', color: '#9d0208' },
-  { key: 'improving', x: 'left', y: 'top', label: 'Improving 개선', color: '#1a82c4' },
-];
-
 export default function RRGChart({ series }: Props) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [dims, setDims] = useState({ w: 720, h: 520 });
   const [trailLen, setTrailLen] = useState(10);
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [showTip, setShowTip] = useState(false);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    const el = svgRef.current?.parentElement;
-    if (!el) return;
-    const ro = new ResizeObserver(entries => {
-      const { width } = entries[0].contentRect;
-      setDims({ w: width, h: Math.min(560, Math.max(360, width * 0.65)) });
+  const allHidden = series.length > 0 && hidden.size === series.length;
+
+  const toggleAll = () => {
+    setHidden(allHidden ? new Set() : new Set(series.map(s => s.sector)));
+  };
+
+  const toggleOne = (sector: string) => {
+    setHidden(prev => {
+      const next = new Set(prev);
+      if (next.has(sector)) next.delete(sector); else next.add(sector);
+      return next;
     });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  };
 
-  const pad = { top: 40, right: 30, bottom: 50, left: 60 };
-  const plotW = dims.w - pad.left - pad.right;
-  const plotH = dims.h - pad.top - pad.bottom;
-  const cx = pad.left + plotW / 2; // RS-Ratio = 100
-  const cy = pad.top + plotH / 2;  // RS-Momentum = 100
+  const option = useMemo(() => {
+    // Compute axis bounds from ALL series (ignore hidden so axes don't jump)
+    const allPts = series.flatMap(s => s.trail.slice(-trailLen));
+    const ratios = allPts.map(p => p.rsRatio);
+    const moms = allPts.map(p => p.rsMomentum);
 
-  // compute axis range from data
-  const allRatios = series.flatMap(s => s.trail.map(p => p.rsRatio));
-  const allMoms = series.flatMap(s => s.trail.map(p => p.rsMomentum));
+    const xSpread = ratios.length ? Math.max(Math.max(...ratios) - 100, 100 - Math.min(...ratios), 4) : 8;
+    const ySpread = moms.length ? Math.max(Math.max(...moms) - 100, 100 - Math.min(...moms), 4) : 8;
 
-  const xMin = allRatios.length ? Math.min(...allRatios) - 2 : 90;
-  const xMax = allRatios.length ? Math.max(...allRatios) + 2 : 110;
-  const yMin = allMoms.length ? Math.min(...allMoms) - 2 : 90;
-  const yMax = allMoms.length ? Math.max(...allMoms) + 2 : 110;
+    const xMin = 100 - xSpread * 1.25;
+    const xMax = 100 + xSpread * 1.25;
+    const yMin = 100 - ySpread * 1.25;
+    const yMax = 100 + ySpread * 1.25;
 
-  // center at 100 symmetrically
-  const xRange = Math.max(xMax - 100, 100 - xMin, 5);
-  const yRange = Math.max(yMax - 100, 100 - yMin, 5);
-  const xDomain = [100 - xRange * 1.1, 100 + xRange * 1.1];
-  const yDomain = [100 - yRange * 1.1, 100 + yRange * 1.1];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const seriesArr: any[] = series.map((s, idx) => {
+      const trail = s.trail.slice(-trailLen);
+      return {
+        type: 'line',
+        name: s.sector,
+        data: trail.map((p, i) => ({
+          value: [p.rsRatio, p.rsMomentum],
+          symbolSize: i === trail.length - 1 ? 14 : 5,
+          itemStyle: {
+            opacity: i === trail.length - 1 ? 1 : 0.25 + 0.65 * (i / Math.max(trail.length - 1, 1)),
+          },
+          label: {
+            show: i === trail.length - 1,
+            formatter: s.sector,
+            position: 'right',
+            fontSize: 11,
+            fontWeight: 'bold',
+            color: s.color,
+          },
+        })),
+        lineStyle: { color: s.color, width: 2, opacity: 0.55 },
+        itemStyle: { color: s.color },
+        emphasis: { scale: 1.4 },
+        // Attach quadrant backgrounds + center lines to the first series
+        ...(idx === 0
+          ? {
+              markArea: {
+                silent: true,
+                data: [
+                  [
+                    {
+                      coord: [100, 100],
+                      itemStyle: { color: 'rgba(34,197,94,0.11)' },
+                      label: { show: true, formatter: 'Leading 주도', position: 'insideTopRight', color: '#166534', fontSize: 11, fontWeight: 'bold' },
+                    },
+                    { coord: [xMax, yMax] },
+                  ],
+                  [
+                    {
+                      coord: [100, yMin],
+                      itemStyle: { color: 'rgba(234,179,8,0.12)' },
+                      label: { show: true, formatter: 'Weakening 고점이탈', position: 'insideBottomRight', color: '#854d0e', fontSize: 11, fontWeight: 'bold' },
+                    },
+                    { coord: [xMax, 100] },
+                  ],
+                  [
+                    {
+                      coord: [xMin, yMin],
+                      itemStyle: { color: 'rgba(239,68,68,0.09)' },
+                      label: { show: true, formatter: 'Lagging 소외', position: 'insideBottomLeft', color: '#991b1b', fontSize: 11, fontWeight: 'bold' },
+                    },
+                    { coord: [100, 100] },
+                  ],
+                  [
+                    {
+                      coord: [xMin, 100],
+                      itemStyle: { color: 'rgba(59,130,246,0.10)' },
+                      label: { show: true, formatter: 'Improving 반등', position: 'insideTopLeft', color: '#1e3a8a', fontSize: 11, fontWeight: 'bold' },
+                    },
+                    { coord: [100, yMax] },
+                  ],
+                ],
+              },
+              markLine: {
+                silent: true,
+                symbol: 'none',
+                lineStyle: { color: '#94a3b8', type: 'dashed', width: 1, opacity: 0.8 },
+                label: { show: false },
+                data: [{ xAxis: 100 }, { yAxis: 100 }],
+              },
+            }
+          : {}),
+      };
+    });
 
-  const toSvgX = (v: number) =>
-    pad.left + ((v - xDomain[0]) / (xDomain[1] - xDomain[0])) * plotW;
-  const toSvgY = (v: number) =>
-    pad.top + plotH - ((v - yDomain[0]) / (yDomain[1] - yDomain[0])) * plotH;
-
-  const xCenter = toSvgX(100);
-  const yCenter = toSvgY(100);
-
-  // x-axis ticks
-  const xTicks = Array.from({ length: 5 }, (_, i) =>
-    xDomain[0] + (i * (xDomain[1] - xDomain[0])) / 4
-  );
-  const yTicks = Array.from({ length: 5 }, (_, i) =>
-    yDomain[0] + (i * (yDomain[1] - yDomain[0])) / 4
-  );
-
-  const handleMouseEnter = useCallback(
-    (e: React.MouseEvent<SVGCircleElement>, sector: string, pt: RRGPoint) => {
-      const rect = svgRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setTooltip({
-        x: e.clientX - rect.left + 10,
-        y: e.clientY - rect.top - 30,
-        text: `${sector}\nRS-Ratio: ${pt.rsRatio.toFixed(2)}\nRS-Mom: ${pt.rsMomentum.toFixed(2)}\n${pt.date}`,
-      });
-    },
-    []
-  );
+    return {
+      animation: false,
+      grid: { top: 20, right: 160, bottom: 52, left: 62 },
+      xAxis: {
+        type: 'value',
+        name: 'RS-Ratio  (상대강도 →)',
+        nameLocation: 'middle',
+        nameGap: 36,
+        min: xMin,
+        max: xMax,
+        axisLine: { show: true, lineStyle: { color: '#d1d5db' } },
+        splitLine: { show: false },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        axisLabel: { fontSize: 10, color: '#6b7280', formatter: (v: any) => (v as number).toFixed(1) },
+        nameTextStyle: { color: '#6b7280', fontSize: 11 },
+      },
+      yAxis: {
+        type: 'value',
+        name: 'RS-Momentum  (모멘텀 ↑)',
+        nameLocation: 'middle',
+        nameGap: 52,
+        min: yMin,
+        max: yMax,
+        axisLine: { show: true, lineStyle: { color: '#d1d5db' } },
+        splitLine: { show: false },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        axisLabel: { fontSize: 10, color: '#6b7280', formatter: (v: any) => (v as number).toFixed(1) },
+        nameTextStyle: { color: '#6b7280', fontSize: 11 },
+      },
+      tooltip: {
+        trigger: 'item',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        formatter: (params: any) => {
+          if (!Array.isArray(params.value)) return '';
+          const s = series.find(s => s.sector === params.seriesName);
+          const trail = s?.trail.slice(-trailLen) ?? [];
+          const pt = trail[params.dataIndex];
+          return `<div style="font-weight:700;color:${params.color};margin-bottom:3px">${params.seriesName}</div>
+<div>RS-Ratio: <b>${(params.value[0] as number).toFixed(2)}</b></div>
+<div>RS-Mom: <b>${(params.value[1] as number).toFixed(2)}</b></div>
+${pt?.date ? `<div style="color:#9ca3af;font-size:11px;margin-top:2px">${pt.date}</div>` : ''}`;
+        },
+      },
+      // legend.show:false but selected controls visibility (notMerge ensures state is applied)
+      legend: {
+        show: false,
+        selected: Object.fromEntries(series.map(s => [s.sector, !hidden.has(s.sector)])),
+      },
+      series: seriesArr,
+    };
+  }, [series, trailLen, hidden]);
 
   return (
-    <div className="relative">
-      <div className="flex items-center gap-3 mb-3">
-        <label className="text-sm text-gray-600">트레일 길이:</label>
-        <input
-          type="range"
-          min={3}
-          max={20}
-          value={trailLen}
-          onChange={e => setTrailLen(Number(e.target.value))}
-          className="w-32 accent-blue-600"
-        />
-        <span className="text-sm font-medium text-gray-700">{trailLen}일</span>
-      </div>
+    <div>
+      {/* Controls row */}
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 whitespace-nowrap">트레일 길이:</label>
+          <input
+            type="range" min={3} max={20} value={trailLen}
+            onChange={e => setTrailLen(Number(e.target.value))}
+            className="w-28 accent-blue-600"
+          />
+          <span className="text-sm font-medium text-gray-700 w-8">{trailLen}일</span>
+        </div>
 
-      <div style={{ position: 'relative' }}>
-        <svg
-          ref={svgRef}
-          width="100%"
-          height={dims.h}
-          viewBox={`0 0 ${dims.w} ${dims.h}`}
-          onMouseLeave={() => setTooltip(null)}
+        <button
+          onClick={toggleAll}
+          className="text-xs px-3 py-1 rounded border border-gray-300 hover:bg-gray-50 text-gray-600 transition-colors"
         >
-          {/* Quadrant backgrounds */}
-          <rect x={xCenter} y={pad.top} width={pad.left + plotW - xCenter} height={yCenter - pad.top}
-            fill={QUADRANT_BG.leading} />
-          <rect x={xCenter} y={yCenter} width={pad.left + plotW - xCenter} height={pad.top + plotH - yCenter}
-            fill={QUADRANT_BG.weakening} />
-          <rect x={pad.left} y={yCenter} width={xCenter - pad.left} height={pad.top + plotH - yCenter}
-            fill={QUADRANT_BG.lagging} />
-          <rect x={pad.left} y={pad.top} width={xCenter - pad.left} height={yCenter - pad.top}
-            fill={QUADRANT_BG.improving} />
+          {allHidden ? '전체 보기' : '전체 숨기기'}
+        </button>
 
-          {/* Plot border */}
-          <rect x={pad.left} y={pad.top} width={plotW} height={plotH}
-            fill="none" stroke="#ccc" strokeWidth={1} />
-
-          {/* Center axes */}
-          <line x1={xCenter} y1={pad.top} x2={xCenter} y2={pad.top + plotH} stroke="#999" strokeWidth={1} strokeDasharray="4 3" />
-          <line x1={pad.left} y1={yCenter} x2={pad.left + plotW} y2={yCenter} stroke="#999" strokeWidth={1} strokeDasharray="4 3" />
-
-          {/* Quadrant labels */}
-          {QUADRANT_LABELS.map(q => (
-            <text
-              key={q.key}
-              x={q.x === 'right' ? pad.left + plotW - 8 : pad.left + 8}
-              y={q.y === 'top' ? pad.top + 16 : pad.top + plotH - 8}
-              textAnchor={q.x === 'right' ? 'end' : 'start'}
-              fontSize={11}
-              fontWeight="600"
-              fill={q.color}
-              opacity={0.7}
-            >
-              {q.label}
-            </text>
-          ))}
-
-          {/* X-axis ticks */}
-          {xTicks.map(v => (
-            <g key={v}>
-              <line x1={toSvgX(v)} y1={pad.top + plotH} x2={toSvgX(v)} y2={pad.top + plotH + 4} stroke="#aaa" strokeWidth={1} />
-              <text x={toSvgX(v)} y={pad.top + plotH + 16} textAnchor="middle" fontSize={10} fill="#666">
-                {v.toFixed(1)}
-              </text>
-            </g>
-          ))}
-          {/* Y-axis ticks */}
-          {yTicks.map(v => (
-            <g key={v}>
-              <line x1={pad.left - 4} y1={toSvgY(v)} x2={pad.left} y2={toSvgY(v)} stroke="#aaa" strokeWidth={1} />
-              <text x={pad.left - 8} y={toSvgY(v)} textAnchor="end" dominantBaseline="middle" fontSize={10} fill="#666">
-                {v.toFixed(1)}
-              </text>
-            </g>
-          ))}
-
-          {/* Axis labels */}
-          <text x={pad.left + plotW / 2} y={dims.h - 6} textAnchor="middle" fontSize={12} fill="#555">
-            RS-Ratio (상대강도)
-          </text>
-          <text
-            x={16}
-            y={pad.top + plotH / 2}
-            textAnchor="middle"
-            fontSize={12}
-            fill="#555"
-            transform={`rotate(-90, 16, ${pad.top + plotH / 2})`}
-          >
-            RS-Momentum
-          </text>
-
-          {/* Trails and dots */}
-          {series.map(s => {
-            const trail = s.trail.slice(-trailLen);
-            if (trail.length === 0) return null;
-            const points = trail.map(p => `${toSvgX(p.rsRatio)},${toSvgY(p.rsMomentum)}`).join(' ');
-            const last = trail[trail.length - 1];
-            const lx = toSvgX(last.rsRatio);
-            const ly = toSvgY(last.rsMomentum);
-            return (
-              <g key={s.sector}>
-                {/* Trail line */}
-                {trail.length > 1 && (
-                  <polyline
-                    points={points}
-                    fill="none"
-                    stroke={s.color}
-                    strokeWidth={1.5}
-                    strokeOpacity={0.5}
-                    strokeLinejoin="round"
-                  />
-                )}
-                {/* Trail dots */}
-                {trail.slice(0, -1).map((pt, i) => (
-                  <circle
-                    key={i}
-                    cx={toSvgX(pt.rsRatio)}
-                    cy={toSvgY(pt.rsMomentum)}
-                    r={2.5}
-                    fill={s.color}
-                    opacity={0.3 + 0.5 * (i / trail.length)}
-                  />
-                ))}
-                {/* Current dot */}
-                <circle
-                  cx={lx}
-                  cy={ly}
-                  r={7}
-                  fill={s.color}
-                  stroke="#fff"
-                  strokeWidth={1.5}
-                  style={{ cursor: 'pointer' }}
-                  onMouseEnter={e => handleMouseEnter(e, s.sector, last)}
-                  onMouseLeave={() => setTooltip(null)}
-                />
-                {/* Label */}
-                <text
-                  x={lx + 9}
-                  y={ly - 4}
-                  fontSize={11}
-                  fontWeight="600"
-                  fill={s.color}
-                  style={{ pointerEvents: 'none', userSelect: 'none' }}
-                >
-                  {s.sector}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-
-        {/* Tooltip */}
-        {tooltip && (
-          <div
-            style={{ position: 'absolute', left: tooltip.x, top: tooltip.y, pointerEvents: 'none' }}
-            className="bg-white border border-gray-200 rounded shadow px-3 py-2 text-xs whitespace-pre z-10"
-          >
-            {tooltip.text}
-          </div>
-        )}
+        <button
+          onClick={() => setShowTip(v => !v)}
+          className={`text-xs px-3 py-1 rounded border transition-colors ${
+            showTip
+              ? 'bg-blue-50 border-blue-300 text-blue-700'
+              : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+          }`}
+        >
+          {showTip ? '설명 닫기 ▲' : '💡 차트 설명 ▼'}
+        </button>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3 mt-3">
-        {series.map(s => (
-          <div key={s.sector} className="flex items-center gap-1.5 text-xs">
-            <span className="inline-block w-3 h-3 rounded-full" style={{ background: s.color }} />
-            {s.sector}
+      {/* Collapsible tip panel */}
+      {showTip && (
+        <div className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-gray-700 leading-relaxed space-y-3">
+          <div>
+            <span className="font-bold text-gray-900">로테이션 휠 (RRG)</span>
+            <span className="ml-2 text-xs text-gray-500">각 테마의 상대 모멘텀 사이클을 2D 평면에 궤적으로 시각화</span>
           </div>
-        ))}
+
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <p className="font-semibold text-gray-800 mb-1">📐 축 구성</p>
+              <p><span className="font-medium">X축 (RS-Ratio)</span> — 최근 평균 변동률 − 전체 평균. 양수 = 시장 아웃퍼폼.</p>
+              <p className="mt-1"><span className="font-medium">Y축 (RS-Momentum)</span> — RS의 변화율. 양수 = RS 상승 중, 음수 = 약화 중.</p>
+              <p className="mt-1"><span className="font-medium">궤적</span> — 최근 N일 이동 경로. ○ 시작 → ● 현재.</p>
+            </div>
+            <div>
+              <p className="font-semibold text-gray-800 mb-1">🔄 이상적 사이클</p>
+              <p>반등초입 <span className="text-blue-600">(Q2)</span> → 주도주 <span className="text-green-600">(Q1)</span> → 고점이탈 <span className="text-yellow-600">(Q4)</span> → 소외 <span className="text-red-600">(Q3)</span></p>
+              <p className="mt-1">궤적 방향 · 길이로 다음 단계 예측 가능.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="bg-green-50 border border-green-100 rounded p-2">
+              <span className="font-bold text-green-700">Q1 우상 — 주도주</span>
+              <p className="text-gray-600 mt-0.5">RS 양수 + 모멘텀 양수. 강한 상승 추세.</p>
+            </div>
+            <div className="bg-yellow-50 border border-yellow-100 rounded p-2">
+              <span className="font-bold text-yellow-700">Q4 우하 — 고점이탈</span>
+              <p className="text-gray-600 mt-0.5">RS 양수지만 모멘텀 음수. 강하나 힘 빠짐.</p>
+            </div>
+            <div className="bg-red-50 border border-red-100 rounded p-2">
+              <span className="font-bold text-red-700">Q3 좌하 — 소외</span>
+              <p className="text-gray-600 mt-0.5">RS 음수 + 모멘텀 음수. 약화 지속.</p>
+            </div>
+            <div className="bg-blue-50 border border-blue-100 rounded p-2">
+              <span className="font-bold text-blue-700">Q2 좌상 — 반등초입</span>
+              <p className="text-gray-600 mt-0.5">RS 음수지만 모멘텀 양수. 바닥 회복 중.</p>
+            </div>
+          </div>
+
+          <div className="text-xs text-gray-600 bg-amber-50 border border-amber-100 rounded p-2 space-y-0.5">
+            <p className="font-semibold text-amber-800">💡 해석 팁</p>
+            <p>• 궤적 길이 길수록 변화 속도 빠름 — 짧으면 방향성 불명확</p>
+            <p>• Q1에 여러 테마 밀집 → 시장 전체 강세 / Q3 밀집 → 전체 약세</p>
+            <p>• Q1 → Q4 이동 시작 = 주도주 약화 신호 (비중 조절 고려)</p>
+            <p>• Q3 → Q2 진입 = 신규 주도 후보 모니터링 대상</p>
+            <p>• 원점(100, 100) 근처 정체 = 시장 중립 / 방향성 불명확</p>
+          </div>
+        </div>
+      )}
+
+      {/* ECharts */}
+      <ReactECharts
+        option={option}
+        style={{ height: 500 }}
+        opts={{ renderer: 'canvas' }}
+        notMerge
+      />
+
+      {/* Custom legend — clickable chips */}
+      <div className="flex flex-wrap gap-2 mt-3">
+        {series.map(s => {
+          const isHidden = hidden.has(s.sector);
+          return (
+            <button
+              key={s.sector}
+              onClick={() => toggleOne(s.sector)}
+              title={isHidden ? '클릭하여 표시' : '클릭하여 숨기기'}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all ${
+                isHidden
+                  ? 'border-gray-200 bg-gray-50 text-gray-400'
+                  : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm'
+              }`}
+            >
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                style={{ background: isHidden ? '#d1d5db' : s.color }}
+              />
+              <span className={isHidden ? 'line-through' : ''}>{s.sector}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
