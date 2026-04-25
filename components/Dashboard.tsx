@@ -172,7 +172,7 @@ export default function Dashboard() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
         <div className="max-w-[1800px] mx-auto px-6 py-3 flex items-center gap-4">
-          <h1 className="text-lg font-bold text-gray-900">📈 투자 포트폴리오 대시보드</h1>
+          <h1 className="text-lg font-bold text-gray-900">📈 섹턴 분석</h1>
           {status === 'done' && (
             <span className="text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-0.5">
               ✓ {results.length}개 종목 · ETF {etfResults.length}개 분석 완료

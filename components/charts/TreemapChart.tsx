@@ -156,13 +156,20 @@ export default function TreemapChart({ data, colorMode = 'cumul', onColorModeCha
               position: 'inside',
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               formatter: (params: any) => {
-                const rp: number | null = params.data?._rp ?? null;
                 const retStr: string = params.data?._retStr ?? '';
+                const company: string = params.data?._company ?? '';
+                const ticker: string = params.name ?? '';
                 const w: number = params.rect?.width ?? 0;
                 const h: number = params.rect?.height ?? 0;
                 if (w < 18 || h < 12) return '';
-                if (h < 26 || !retStr) return params.name;
-                return `${params.name}\n${retStr}`;
+                // Large cell: company name + ticker + return
+                if (w > 80 && h > 50 && company) {
+                  return retStr ? `${company}\n${ticker}\n${retStr}` : `${company}\n${ticker}`;
+                }
+                // Medium cell: ticker + return
+                if (h > 26 && retStr) return `${ticker}\n${retStr}`;
+                // Small cell: ticker only
+                return ticker;
               },
               fontSize: 11,
               fontWeight: 'bold',
