@@ -246,23 +246,22 @@ export function buildRRGData(results: StockAnalysis[], trailLength = 10): RRGSer
 
     const marketVals = dates.map(d => marketByDate.get(d) ?? 0);
 
-    const rsRatios = sectorVals.map((sv, i) => {
-      const mv = marketVals[i];
-      if (mv === 0) return 100;
-      return 100 + (sv - mv);
-    });
+    // RS-Ratio: sector excess return vs market average (centered at 0)
+    const rsRatios = sectorVals.map((sv, i) => sv - marketVals[i]);
 
+    // RS-Momentum: deviation of RS from its EMA14 (centered at 0)
     const rsEma = ema(rsRatios, 14);
-    const rsMomentum = rsRatios.map((r, i) => {
-      const e = rsEma[i];
-      if (e === 0) return 100;
-      return 100 + (r - e);
-    });
+    const rsMomentum = rsRatios.map((r, i) => r - rsEma[i]);
 
+    // Skip EMA warm-up period and filter non-finite values
+    const warmup = 14;
     const trail: RRGPoint[] = [];
-    const start = Math.max(0, dates.length - trailLength);
-    for (let i = start; i < dates.length; i++) {
-      trail.push({ date: dates[i], rsRatio: rsRatios[i], rsMomentum: rsMomentum[i] });
+    for (let i = warmup; i < dates.length; i++) {
+      const r = rsRatios[i];
+      const m = rsMomentum[i];
+      if (isFinite(r) && isFinite(m)) {
+        trail.push({ date: dates[i], rsRatio: r, rsMomentum: m });
+      }
     }
 
     series.push({ sector, trail, color: SECTOR_COLORS[colorIdx % SECTOR_COLORS.length] });
