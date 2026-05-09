@@ -133,7 +133,7 @@ export default function RRGChart({ series }: Props) {
     const xSpread = spreadFrom100(allR);
     const ySpread = spreadFrom100(allM);
     const xMin = CENTER - xSpread * 1.3;
-    const xMax = CENTER + xSpread * 1.3;
+    const xMax = CENTER + xSpread * 1.8;
     const yMin = CENTER - ySpread * 1.3;
     const yMax = CENTER + ySpread * 1.3;
 

@@ -65,7 +65,7 @@ export default function TrendLineChart({
           ? { autoScale: false, minimum: yMin, maximum: yMax }
           : {}),
       } as Parameters<typeof chart.applyOptions>[0]['rightPriceScale'],
-      timeScale: { borderColor: '#e5e7eb', timeVisible: true, secondsVisible: false },
+      timeScale: { borderColor: '#e5e7eb', timeVisible: true, secondsVisible: false, rightOffset: 8 },
       grid: {
         vertLines: { color: '#f3f4f6' },
         horzLines: { color: '#f3f4f6' },

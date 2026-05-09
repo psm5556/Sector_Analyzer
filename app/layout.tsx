@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '섹턴 분석',
+  title: '섹터 분석',
   description: '섹터별 투자 포트폴리오 분석 대시보드',
 };
 
