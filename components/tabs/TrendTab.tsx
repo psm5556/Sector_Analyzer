@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { StockAnalysis } from '@/lib/types';
+import { isKoreanTicker } from '@/lib/ticker';
 import {
   calcTeamAverageCumul,
   calcSectorAverageCumul,
@@ -41,30 +42,35 @@ interface TrendTabProps {
 export default function TrendTab({ results, yMinCumul, yMaxCumul, startDate }: TrendTabProps) {
   const [expandedSectors, setExpandedSectors] = useState<Set<string>>(new Set());
 
-  const teams = useMemo(() => Array.from(new Set(results.map((r) => r.team))).sort(), [results]);
-  const sectors = useMemo(() => Array.from(new Set(results.map((r) => r.sector))).sort(), [results]);
-  const sectorGroups = useMemo(() => groupBySector(results), [results]);
+  const usResults = useMemo(
+    () => results.filter((r) => !isKoreanTicker(r.ticker)),
+    [results]
+  );
+
+  const teams = useMemo(() => Array.from(new Set(usResults.map((r) => r.team))).sort(), [usResults]);
+  const sectors = useMemo(() => Array.from(new Set(usResults.map((r) => r.sector))).sort(), [usResults]);
+  const sectorGroups = useMemo(() => groupBySector(usResults), [usResults]);
 
   const teamCumul = useMemo(
     () =>
       teams.map((team) => ({
-        data: calcTeamAverageCumul(results, team),
+        data: calcTeamAverageCumul(usResults, team),
         color: getTeamColor(team),
         title: team,
       })),
-    [results, teams]
+    [usResults, teams]
   );
-  const marketAvg = useMemo(() => calcMarketAverage(results), [results]);
+  const marketAvg = useMemo(() => calcMarketAverage(usResults), [usResults]);
 
   const sectorCumulSeries = useMemo(
     () =>
       sectors.map((sector, i) => ({
-        data: calcSectorAverageCumul(results, sector),
+        data: calcSectorAverageCumul(usResults, sector),
         color: SECTOR_COLORS[i % SECTOR_COLORS.length],
         title: sector,
         lineWidth: 1 as const,
       })),
-    [results, sectors]
+    [usResults, sectors]
   );
 
   const toggleSector = (sector: string) => {
@@ -114,7 +120,7 @@ export default function TrendTab({ results, yMinCumul, yMaxCumul, startDate }: T
         <h2 className="text-sm font-semibold text-gray-800 mb-4">청팀 vs 백팀 평균 변동률 비교</h2>
         <div className={`grid grid-cols-1 ${teams.length > 1 ? 'md:grid-cols-2' : ''} gap-4`}>
           {teams.map((team) => {
-            const teamStocks = results.filter((r) => r.team === team);
+            const teamStocks = usResults.filter((r) => r.team === team);
             const dateSet = new Set<string>();
             teamStocks.forEach((s) => s.dailyReturns.forEach((r) => dateSet.add(r.date)));
             const dates = Array.from(dateSet).sort();
